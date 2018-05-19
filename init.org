@@ -1,0 +1,405 @@
+#+TITLE: Emacs init file written in org-mode
+#+PROPERTY: header-args :tangle yes :noweb yes
+
+* Personal information
+
+#+BEGIN_SRC emacs-lisp
+(setq user-full-name "Michael Spencer"
+      user-mail-address "sonrisesoftware@gmail.com")
+#+END_SRC
+
+* Initialization
+
+#+BEGIN_SRC emacs-lisp
+(setq inhibit-startup-screen t)
+
+(defvar user-org-init-file "~/.emacs.d/init.org")
+#+END_SRC
+
+** Package management
+
+#+BEGIN_SRC emacs-lisp
+(require 'package)
+(setq package-enable-at-startup nil
+      package-archives '(("melpa" . "https://melpa.org/packages/")
+                         ("org"   . "https://orgmode.org/elpa/")
+                         ("gnu"   . "http://elpa.gnu.org/packages/")))
+
+(package-initialize)
+
+(unless (package-installed-p 'use-package)
+  (package-refresh-contents)
+  (package-install 'use-package))
+
+(eval-when-compile
+  (require 'use-package))
+
+(setq use-package-always-ensure t)
+
+(use-package diminish)
+#+END_SRC
+
+** custom.el
+
+#+BEGIN_SRC emacs-lisp
+(setq custom-file "~/.emacs.d/custom.el")
+(load custom-file t)
+#+END_SRC
+
+* Appearance
+
+** Hide unneeded UI elements
+
+#+BEGIN_SRC emacs-lisp
+(scroll-bar-mode -1)
+(tool-bar-mode -1)
+(menu-bar-mode -1)
+#+END_SRC
+
+* Configuration
+
+#+BEGIN_SRC emacs-lisp
+(setq enable-recursive-minibuffers t)
+#+END_SRC
+
+** Keybindings
+
+#+BEGIN_SRC emacs-lisp
+(use-package which-key
+  :diminish
+  :config
+  (which-key-mode 1))
+
+(use-package general
+  :config
+  (general-evil-setup t)
+  <<keybindings>>)
+#+END_SRC
+
+** Ivy, Counsel, and Swiper
+
+[[https://github.com/abo-abo/swiper][Ivy]] is useful completion framework for Emacs.
+
+#+BEGIN_SRC emacs-lisp
+(use-package ivy
+  :diminish
+  :init
+  (setq ivy-use-virtual-buffers t
+        ivy-use-selectable-prompt t)
+  :config
+  (ivy-mode 1))
+
+(use-package counsel
+  :diminish
+  :config
+  (counsel-mode 1))
+
+(use-package swiper
+  :general
+  ("C-s" 'swiper))
+#+END_SRC
+
+** Projectile
+
+#+BEGIN_SRC emacs-lisp
+(use-package projectile
+  :config
+  (add-to-list 'projectile-globally-ignored-directories "node_modules")
+  (projectile-mode))
+
+(use-package counsel-projectile
+  :config
+  (counsel-projectile-mode))
+#+END_SRC
+
+** Bookmarks
+
+Auto-save bookmarks:
+
+#+BEGIN_SRC emacs-lisp
+(setq bookmark-save-flag 1)
+#+END_SRC
+
+* Editor configuration
+
+** Indentation
+
+Display tabs as four spaces, but always indent using spaces:
+
+#+BEGIN_SRC emacs-lisp
+(setq indent-tabs-mode nil
+      tab-width 4)
+#+END_SRC
+
+** File saving and reloading
+
+Automatically revert when the file is changed on disk and delete
+trailing whitespace when a file is saved:
+
+#+BEGIN_SRC emacs-lisp
+(global-auto-revert-mode t)
+(add-hook 'before-save-hook 'delete-trailing-whitespace)
+#+END_SRC
+
+** Undo Tree
+
+[[https://www.emacswiki.org/emacs/UndoTree][Undo tree]] provides a tree-like interface for recovering any past state
+of a buffer without risking breaking the undo chain:
+
+#+BEGIN_SRC emacs-lisp
+(use-package undo-tree
+  :diminish
+  :config
+  (global-undo-tree-mode)
+  (setq undo-tree-visualizer-diff t))
+#+END_SRC
+
+** Modal editing with Evil
+
+#+BEGIN_SRC emacs-lisp
+(use-package evil
+  :config
+  (evil-mode 1))
+#+END_SRC
+
+** Spell checking
+
+Enable flycheck in text modes, excluding changelog and log edit modes:
+
+#+BEGIN_SRC emacs-lisp
+(dolist (hook '(text-mode-hook))
+  (add-hook hook (lambda () (flyspell-mode 1))))
+(dolist (hook '(change-log-mode-hook log-edit-mode-hook))
+  (add-hook hook (lambda () (flyspell-mode -1))))
+(diminish 'flyspell-mode " ✔")
+#+END_SRC
+
+* Custom commands
+
+** User init file
+
+#+BEGIN_SRC emacs-lisp
+(defun edit-user-init-file ()
+  (interactive)
+  (find-file-other-window user-org-init-file))
+
+(defun load-user-init-file ()
+  (interactive)
+  (org-babel-load-file user-org-init-file))
+#+END_SRC
+
+** Files and Buffers
+
+#+BEGIN_SRC emacs-lisp
+(defun kill-all-buffers ()
+  "Kill all open buffers."
+  (interactive)
+  (mapc 'kill-buffer (buffer-list)))
+
+(defun kill-current-buffer ()
+  "Kill the current buffer."
+  (interactive)
+  (kill-buffer (current-buffer)))
+
+(defun rename-file-and-buffer ()
+  "Rename the current buffer and file it is visiting."
+  (interactive)
+  (let ((filename (buffer-file-name)))
+    (if (not (and filename (file-exists-p filename)))
+        (message "Buffer is not visiting a file!")
+      (let ((new-name (read-file-name "New name: " filename)))
+        (cond
+         ((vc-backend filename) (vc-rename-file filename new-name))
+         (t
+          (rename-file filename new-name t)
+          (set-visited-file-name new-name t t)))))))
+
+(defun delete-file-and-buffer ()
+  "Kill the current buffer and deletes the file it is visiting."
+  (interactive)
+  (let ((filename (buffer-file-name)))
+    (when filename
+      (if (vc-backend filename)
+          (vc-delete-file filename)
+        (progn
+          (delete-file filename)
+          (message "Deleted file %s" filename)
+          (kill-buffer))))))
+
+(defun kill-to-file (start end filename)
+  "Kill the selected region and append it to a file."
+  (interactive "r\nFAppend to file: ")
+  (append-to-file start end filename)
+  (kill-region start end))
+
+(defun indent-buffer ()
+  (interactive)
+  (save-excursion
+        (indent-region (point-min) (point-max) nil)))
+#+END_SRC
+
+* Keybindings
+
+#+NAME: keybindings
+#+BEGIN_SRC emacs-lisp :tangle no
+(general-define-key
+  :keymaps '(normal visual insert emacs)
+  :prefix "SPC"
+  :non-normal-prefix "M-SPC"
+
+  "b"    '(:ignore t :which-key "bookmarks and buffers")
+  "bb"   '(ivy-switch-buffer :which-key "switch buffers")
+  "bi"   '(indent-buffer :which-key "indent buffer")
+  "bl"   '(bookmark-bmenu-list :which-key "view bookmarks")
+  "bs"   '(bookmark-set :which-key "save bookmark")
+  "br"   '(rename-file-and-buffer :which-key "rename active buffer")
+  "bd"   '(rename-file-and-buffer :which-key "delete active buffer")
+  "bk"   '(kill-this-buffer :which-key "kill active buffer")
+
+  "d"    '(dired :which-key "dired")
+
+  "c"    '(org-capture :which-key "org capture")
+
+  "e"    '(flycheck-list-errors :which-key "show flycheck errors")
+
+  "f"    '(:ignore t :which-key "files")
+  "fr"   '(vc-rename-file :which-key "rename file")
+  "fd"   '(vc-delete-file :which-key "delete file")
+
+  "fi"   '(:which-key "user init file")
+  "fir"  '(load-user-init-file :which-key "reload user init file")
+  "fie"  '(edit-user-init-file :which-key "edit user init file")
+
+
+  "i"    '(indent-buffer :which-key "indent buffer")
+
+  "j"    '(counsel-imenu :which-key "jump to definition")
+
+  "k"    '(delete-other-windows :which-key "delete other windows")
+
+  "o"    '(org-agenda :which "org agenda")
+  "a"    '(org-agenda-list :which-key "weekly agenda")
+
+  "m"    '(:ignore t :which-key "email")
+  "mi"   '(ace/mu4e-personal-inbox :which-key "personal inbox")
+  "mw"   '(ace/mu4e-work-inbox :which-key "work inbox")
+  "mm"   '(mu4e :which-key "mu4e")
+
+  "p"    '(:ignore t :which-key "projects")
+  "pc"   '(ace/counsel-projectile-org-capture :which-key "capture task")
+  "pe"   '(projectile-edit-dir-locals :which-key "edit config")
+  "pp"   '(counsel-projectile-switch-project :which-key "switch project")
+  "ps"   '(counsel-projectile-grep :which-key "search project")
+  "pv"   '(magit-status :which-key "version control")
+  "pV"   '(magit-dispatch-popup :which-key "version control actions")
+  "p/"   '(counsel-projectile-grep :which-key "search project")
+
+  "s"    '(save-buffer :which-key "save buffer")
+
+  "u"    '(undo-tree-visualize :which-key "undo tree")
+
+  "v"    '(magit-status :which-key "version control")
+  "V"    '(magit-dispatch-popup :which-key "version control actions")
+
+  "w"    '(:ignore t :which-key "window")
+  "wk"   '(delete-other-windows :which-key "delete other windows")
+  "ws"   '(other-window :which-key "other window")
+  "wh"   '(split-window-horizontally :which-key "split window horizontally")
+  "wv"   '(split-window-vertically :which-key "split window vertically")
+
+  "x"    '(recompile :which-key "recompile")
+  "X"    '(compile :which-key "compile")
+
+  "/"    '(swiper :which-key "seach")
+  "="    '(calc :which-key "calc")
+
+  "SPC"  '(counsel-projectile :which-key "projectile")
+  "RET"  '(eshell :which-key "shell")
+
+  "<left>"  '(evil-window-left :which-key "left window")
+  "<right>" '(evil-window-right :which-key "right window")
+  "<up>"    '(evil-window-up :which-key "top window")
+  "<down>"  '(evil-window-down :which-key "bottom window")
+)
+#+END_SRC
+
+* Org mode
+
+#+BEGIN_SRC emacs-lisp
+(use-package org :ensure org-plus-contrib
+  :config
+  <<org-appearance>>)
+#+END_SRC
+
+** Appearance
+
+#+NAME: org-appearance
+#+BEGIN_SRC emacs-lisp :tangle no
+(setq org-startup-indented t
+      org-hide-leading-stars t)
+(setq org-src-fontify-natively t
+      org-src-preserve-indentation nil
+      org-edit-src-content-indentation 0)
+#+END_SRC
+* Software development
+
+** Editor configuration
+
+*** Line numbers
+
+*** Delimiters
+
+#+BEGIN_SRC emacs-lisp
+(show-paren-mode 1)
+
+(use-package rainbow-delimiters
+  :diminish
+  :hook (prog-mode . rainbow-delimiters-mode))
+#+END_SRC
+
+*** Editorconfig
+
+#+BEGIN_SRC emacs-lisp
+(use-package editorconfig
+  :diminish
+  :config
+  (editorconfig-mode 1))
+#+END_SRC
+
+*** Syntax checking
+
+#+BEGIN_SRC emacs-lisp
+(use-package flycheck
+  :diminish
+  :config
+  (global-flycheck-mode))
+#+END_SRC
+
+*** Version control
+
+#+BEGIN_SRC emacs-lisp
+(use-package magit)
+#+END_SRC
+
+Replace the default empty git repo message with Genesis 1:1:
+
+#+BEGIN_SRC emacs-lisp
+(defun magit-insert-status-headers ()
+  "Insert header sections appropriate for `magit-status-mode' buffers.
+The sections are inserted by running the functions on the hook
+`magit-status-headers-hook'."
+  (if (magit-rev-verify "HEAD")
+      (magit-insert-headers magit-status-headers-hook)
+(insert "In the beginning, God created...\n\n")))
+#+END_SRC
+
+*** Snippets
+
+#+BEGIN_SRC emacs-lisp
+(use-package yasnippet :ensure t
+  :config
+  (yas-reload-all)
+  :hook (prog-mode . yas-minor-mode))
+
+(use-package yasnippet-snippets :ensure t)
+#+END_SRC

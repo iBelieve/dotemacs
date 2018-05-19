@@ -341,6 +341,119 @@ Enable flycheck in text modes, excluding changelog and log edit modes:
       org-src-preserve-indentation nil
       org-edit-src-content-indentation 0)
 #+END_SRC
+* Email
+
+#+BEGIN_SRC emacs-lisp
+;; TODO: Remove dependency on patched mu4e
+(add-to-list 'load-path (expand-file-name "~/Developer/thirdparty/mu/mu4e/"))
+
+(use-package mu4e :ensure nil
+  :config
+
+  (defmacro ace/match-func-maildir (pattern)
+    `(lambda (msg)
+      (when msg
+        (string-match-p ,pattern (mu4e-message-field msg :maildir)))))
+
+  (setq mail-user-agent 'mu4e-user-agent)
+
+  ;; TODO: Remove dependency on local mu
+  (setq mu4e-mu-binary (expand-file-name "~/Developer/thirdparty/mu/mu/mu"))
+
+  ;; mbsync/gmail config
+  (setq mu4e-maildir (expand-file-name "~/.mail")
+        mu4e-get-mail-command "mbsync -a"
+        mu4e-change-filenames-when-moving t
+        mu4e-sent-messages-behavior 'delete)
+
+  ;; sending config
+  (setq message-send-mail-function 'smtpmail-send-it
+        smtpmail-stream-type 'starttls
+        smtpmail-default-smtp-server "smtp.gmail.com"
+        smtpmail-smtp-server "smtp.gmail.com"
+        smtpmail-smtp-service 587)
+
+  <<mu4e-shortcuts>>
+
+  (setq mu4e-contexts
+        (list
+         <<mu4e-personal-context>>
+         <<mu4e-work-context>>)
+        mu4e-context-policy 'pick-first
+        mu4e-compose-context-policy 'ask))
+#+END_SRC
+
+** Custom commands
+
+#+BEGIN_SRC emacs-lisp
+(defun ace/mu4e-personal-inbox ()
+  "jump to mu4e inbox"
+  (interactive)
+  (mu4e~headers-jump-to-maildir "/gmail/Inbox"))
+
+(defun ace/mu4e-work-inbox ()
+  "jump to mu4e inbox"
+  (interactive)
+  (mu4e~headers-jump-to-maildir "/work/Inbox"))
+#+END_SRC
+
+** Shortcuts
+
+#+NAME: mu4e-shortcuts
+#+BEGIN_SRC emacs-lisp :tangle no
+(setq mu4e-maildir-shortcuts
+      '(("/gmail/Inbox"             . ?i)
+        ("/gmail/[Gmail]/Sent Mail" . ?s)
+        ("/gmail/[Gmail]/Trash"     . ?t)
+        ("/work/Inbox"              . ?w)))
+#+END_SRC
+
+** Personal context
+
+#+NAME: mu4e-personal-context
+#+BEGIN_SRC emacs-lisp :tangle no
+(make-mu4e-context
+ :name "Personal"
+ :match-func (ace/match-func-maildir "^/gmail")
+ :vars '((mu4e-compose-signature .
+                                 (concat
+                                  "Michael Spencer\n"
+                                  "https://mspencer.io\n"))
+         (mu4e-drafts-folder     . "/gmail/[Gmail]/Drafts")
+         (mu4e-sent-folder       . "/gmail/[Gmail]/Sent Mail")
+         (mu4e-trash-folder      . "/gmail/[Gmail]/Trash")
+         (mu4e-refile-folder     . "/gmail/[Gmail]/All Mail")))
+#+END_SRC
+
+** Work context
+
+#+NAME: mu4e-work-context
+#+BEGIN_SRC emacs-lisp :tangle no
+(make-mu4e-context
+ :name "Work"
+ :match-func (ace/match-func-maildir "^/work")
+ :vars '((user-mail-address       . "michael@lelander.com")
+         (user-full-name          . "Michael Spencer")
+         (mu4e-compose-signature  .
+                                  (concat
+                                   "Michael Spencer | Software Developer\n"
+                                   "LELANDER\n"
+                                   "4501 Lindell Blvd, Suite 1A St. Louis, MO 63108\n"
+                                   "636.388.2144 | lelander.com"))
+         (mu4e-drafts-folder     . "/work/[Gmail]/Drafts")
+         (mu4e-sent-folder       . "/work/[Gmail]/Sent Mail")
+         (mu4e-trash-folder      . "/work/[Gmail]/Trash")
+         (mu4e-refile-folder     . "/work/[Gmail]/All Mail")))
+#+END_SRC
+
+** Org mode integration
+
+#+BEGIN_SRC emacs-lisp
+(use-package org-mu4e :ensure nil
+  :config
+  (setq org-mu4e-link-query-in-headers-mode nil))
+#+END_SRC
+
 * Software development
 
 ** Editor configuration

@@ -24,6 +24,7 @@
       package-archives '(("melpa" . "https://melpa.org/packages/")
                          ("org"   . "https://orgmode.org/elpa/")
                          ("gnu"   . "http://elpa.gnu.org/packages/")))
+(add-to-list 'load-path "~/.emacs.d/lisp")
 
 (package-initialize)
 
@@ -172,6 +173,15 @@ Enable flycheck in text modes, excluding changelog and log edit modes:
 (dolist (hook '(change-log-mode-hook log-edit-mode-hook))
   (add-hook hook (lambda () (flyspell-mode -1))))
 (diminish 'flyspell-mode " ✔")
+#+END_SRC
+
+** Move lines or regions up/down
+
+#+BEGIN_SRC emacs-lisp
+;; Package from https://github.com/targzeta/move-lines
+(use-package move-lines :ensure nil
+  :config
+  (move-lines-binding))
 #+END_SRC
 
 * Custom commands

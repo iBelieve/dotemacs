@@ -47,6 +47,17 @@
 (load custom-file t)
 #+END_SRC
 
+* Utility functions
+
+** Reading lines form files
+
+#+BEGIN_SRC emacs-lisp
+(defun ace/read-lines (path)
+  (with-temp-buffer
+    (insert-file-contents path)
+    (split-string (buffer-string) "\n" t)))
+#+END_SRC
+
 * Appearance
 
 ** Hide unneeded UI elements
@@ -55,6 +66,32 @@
 (scroll-bar-mode -1)
 (tool-bar-mode -1)
 (menu-bar-mode -1)
+#+END_SRC
+
+** Font and Theme
+
+#+BEGIN_SRC emacs-lisp
+(defun ace/load-theme ()
+    (set-frame-font "Source Code Pro"))
+
+(if (daemonp)
+    (add-hook 'after-make-frame-functions
+	      (lambda (frame)
+		(select-frame frame)
+                (ace/load-theme)))
+  (ace/load-theme))
+#+END_SRC
+
+** Icons
+
+#+BEGIN_SRC emacs-lisp
+(use-package all-the-icons)
+#+END_SRC
+
+** Visual bell
+
+#+BEGIN_SRC emacs-lisp
+(setq visible-bell t)
 #+END_SRC
 
 * Configuration
@@ -82,6 +119,8 @@
 [[https://github.com/abo-abo/swiper][Ivy]] is useful completion framework for Emacs.
 
 #+BEGIN_SRC emacs-lisp
+(use-package smex)
+
 (use-package ivy
   :diminish
   :init
@@ -139,6 +178,7 @@ trailing whitespace when a file is saved:
 
 #+BEGIN_SRC emacs-lisp
 (global-auto-revert-mode t)
+(diminish 'auto-revert-mode)
 (add-hook 'before-save-hook 'delete-trailing-whitespace)
 #+END_SRC
 
@@ -172,7 +212,7 @@ Enable flycheck in text modes, excluding changelog and log edit modes:
   (add-hook hook (lambda () (flyspell-mode 1))))
 (dolist (hook '(change-log-mode-hook log-edit-mode-hook))
   (add-hook hook (lambda () (flyspell-mode -1))))
-(diminish 'flyspell-mode " ✔")
+(diminish 'flyspell-mode (concat " " (all-the-icons-material "spellcheck")))
 #+END_SRC
 
 ** Move lines or regions up/down
@@ -182,6 +222,37 @@ Enable flycheck in text modes, excluding changelog and log edit modes:
 (use-package move-lines :ensure nil
   :config
   (move-lines-binding))
+#+END_SRC
+
+** Soft wrap
+
+#+BEGIN_SRC emacs-lisp
+(setq whitespace-display-mappings
+    '((newline-mark 10 [?↷ 10])))      ; newline
+
+(eval-after-load 'whitespace
+  (lambda ()
+    (set-face-attribute 'whitespace-newline nil :foreground "#999")))
+
+(defun ace/visual-line-mode-hook ()
+  (when visual-line-mode
+    (whitespace-mode -1)
+
+    ;; display newline characters with whitespace-mode
+    (make-local-variable 'whitespace-style)
+    (setq whitespace-style '(newline newline-mark))
+    (whitespace-mode)
+
+    ;; disable auto-fill-mode
+    (when auto-fill-function
+      (auto-fill-mode -1))
+
+    ;; visually wrap text at fill-column
+    (visual-fill-column-mode)))
+
+(use-package visual-fill-column :ensure t
+  :config
+  (add-hook 'visual-line-mode-hook 'ace/visual-line-mode-hook))
 #+END_SRC
 
 * Custom commands
@@ -275,6 +346,7 @@ Enable flycheck in text modes, excluding changelog and log edit modes:
   "f"    '(:ignore t :which-key "files")
   "fr"   '(vc-rename-file :which-key "rename file")
   "fd"   '(vc-delete-file :which-key "delete file")
+  "ff"   '(find-file :which-key "open file")
 
   "fi"   '(:which-key "user init file")
   "fir"  '(load-user-init-file :which-key "reload user init file")
@@ -291,6 +363,7 @@ Enable flycheck in text modes, excluding changelog and log edit modes:
   "a"    '(org-agenda-list :which-key "weekly agenda")
 
   "m"    '(:ignore t :which-key "email")
+  "mc"   '(mu4e-compose-new :which-key" compose email")
   "mi"   '(ace/mu4e-personal-inbox :which-key "personal inbox")
   "mw"   '(ace/mu4e-work-inbox :which-key "work inbox")
   "mm"   '(mu4e :which-key "mu4e")
@@ -337,8 +410,31 @@ Enable flycheck in text modes, excluding changelog and log edit modes:
 
 #+BEGIN_SRC emacs-lisp
 (use-package org :ensure org-plus-contrib
+  :mode ("\\.org$" . org-mode)
   :config
-  <<org-appearance>>)
+  <<org-files>>
+  <<org-appearance>>
+  <<org-todos>>
+  <<org-habits>>
+  <<org-capture>>
+
+  (use-package org-bullets
+    :hook (org-mode . org-bullets-mode)
+    :config
+    (setq org-bullets-bullet-list '("◉" "◎" "○" "◇")))
+
+  (eval-after-load 'org-indent '(diminish 'org-indent-mode)))
+#+END_SRC
+
+** Org files
+
+#+NAME: org-files
+#+BEGIN_SRC emacs-lisp :tangle no
+(setq org-directory "~/Dropbox/org"
+      org-agenda-files '("~/Dropbox/org/"
+                         "~/Dropbox/org/college/"
+                         "~/Dropbox/org/college/cleps"
+                         "~/Dropbox/org/lelander/"))
 #+END_SRC
 
 ** Appearance
@@ -346,11 +442,102 @@ Enable flycheck in text modes, excluding changelog and log edit modes:
 #+NAME: org-appearance
 #+BEGIN_SRC emacs-lisp :tangle no
 (setq org-startup-indented t
-      org-hide-leading-stars t)
+      org-hide-leading-stars t
+      org-agenda-dim-blocked-tasks t
+      org-hide-emphasis-markers t
+      org-highlight-latex-and-related '(latex))
 (setq org-src-fontify-natively t
       org-src-preserve-indentation nil
       org-edit-src-content-indentation 0)
+
+(font-lock-add-keywords 'org-mode
+			'(("^ +\\([-*]\\) "
+			   (0 (prog1 () (compose-region (match-beginning 1) (match-end 1) "•"))))))
 #+END_SRC
+
+** TODOs
+
+#+NAME: org-todos
+#+BEGIN_SRC emacs-lisp :tangle no
+(setq org-todo-keywords '((sequence "TODO(t)" "IN-PROGRESS(i)" "|" "DONE(d)"))
+      org-enforce-todo-dependencies t
+      org-enforce-todo-checkbox-dependencies t
+      org-hierarchical-todo-statistics nil
+      org-log-done 'time)
+#+END_SRC
+
+** Habits
+
+#+NAME: org-habits
+#+BEGIN_SRC emacs-lisp :tangle no
+(setq org-habit-graph-column 45)
+(add-to-list 'org-modules 'org-habit)
+#+END_SRC
+** Clocking
+
+Mark TODO tasks as in-progress when clocking:
+
+#+BEGIN_SRC emacs-lisp
+(defun ace/org-clock-state-to-switch-to (state)
+  (if (string= state "TODO")
+      "IN-PROGRESS"
+    nil))
+#+END_SRC
+
+#+NAME: org-clocking
+#+BEGIN_SRC emacs-lisp :tangle no
+(setq org-clock-in-switch-to-state 'ace/org-clock-state-to-switch-to
+      org-clock-in-resume t
+      org-clock-out-when-done t
+      org-clock-out-remove-zero-time-clocks t
+      org-clock-auto-clock-resolution 'when-no-clock-is-running
+      org-clock-report-include-clocking-task t
+      org-clock-persist t)
+(org-clock-persistence-insinuate)
+#+END_SRC
+
+** Capture
+
+#+NAME: org-capture
+#+BEGIN_SRC emacs-lisp :tangle no
+(setq org-default-notes-file (concat org-directory "/personal.org"))
+(general-define-key
+ "C-c c" '(org-capture :which-key "Org capture"))
+
+(setq org-capture-templates
+      `(("t" "Task" entry (file+headline ,org-default-notes-file "Inbox")
+	 "* TODO %^{Task}\n%u\n"
+	 :immediate-finish t
+	 :empty-lines 1)
+	("s" "Scheduled task" entry (file+headline ,org-default-notes-file "Inbox")
+	 "* TODO %^{Task}\nSCHEDULED: %^t"
+	 :immediate-finish t
+	 :empty-lines 1)
+	("l" "Linked task" entry (file+headline ,org-default-notes-file "Inbox")
+	 "* TODO %?\n%a\n\n%i"
+	 :empty-lines 1)
+	("i" "Idea" entry (file+headline "~/Dropbox/org/devideas.org" "Stage 1 - /Idea/")
+	 "* %?\n%t\n\n%i"
+	 :empty-lines 1)
+	("n" "Note for clocked task" item (clock))
+	("j" "Journal" plain (file+olp+datetree "~/Dropbox/org/journal.org")
+	 "%?"
+	 :empty-lines 1)
+	("w" "Work")
+	("wt" "Work task" entry (file+headline "~/Dropbox/org/lelander.org" "Inbox")
+	 "* TODO %^{Task}\n%u"
+	 :immediate-finish t
+	 :empty-lines 1)
+	("ws" "Scheduled work task" entry (file+headline "~/Dropbox/org/lelander.org"
+							 "Inbox")
+	 "* TODO %^{Task}\nSCHEDULED: %^t"
+	 :immediate-finish t
+	 :empty-lines 1)
+	("Q" "Quote" item (file+headline ,org-default-notes-file "Favorite Quotes")
+	 "%x ~ %^{Author}"
+	 :empty-lines 1)))
+#+END_SRC
+
 * Email
 
 #+BEGIN_SRC emacs-lisp
@@ -376,6 +563,9 @@ Enable flycheck in text modes, excluding changelog and log edit modes:
         mu4e-change-filenames-when-moving t
         mu4e-sent-messages-behavior 'delete)
 
+  ;; Appearance
+  (setq mu4e-confirm-quit nil)
+
   ;; sending config
   (setq message-send-mail-function 'smtpmail-send-it
         smtpmail-stream-type 'starttls
@@ -390,7 +580,9 @@ Enable flycheck in text modes, excluding changelog and log edit modes:
          <<mu4e-personal-context>>
          <<mu4e-work-context>>)
         mu4e-context-policy 'pick-first
-        mu4e-compose-context-policy 'ask))
+        mu4e-compose-context-policy 'ask)
+
+  (add-hook 'mu4e-compose-mode-hook 'visual-line-mode))
 #+END_SRC
 
 ** Custom commands
@@ -464,6 +656,19 @@ Enable flycheck in text modes, excluding changelog and log edit modes:
   (setq org-mu4e-link-query-in-headers-mode nil))
 #+END_SRC
 
+** Email groups
+
+#+BEGIN_SRC emacs-lisp
+(defun ace/load-mail-abbrevs ()
+  (setq mail-abbrevs nil)
+  (dolist (file (directory-files "~/Dropbox/personal/mail-groups" t ".dat$"))
+    (let ((name (file-name-base file))
+	  (emails (string-join (ace/read-lines file) ", ")))
+      (define-mail-abbrev name emails))))
+
+(ace/load-mail-abbrevs)
+#+END_SRC
+
 * Software development
 
 ** Editor configuration
@@ -520,9 +725,71 @@ The sections are inserted by running the functions on the hook
 
 #+BEGIN_SRC emacs-lisp
 (use-package yasnippet :ensure t
+  :diminish yas-minor-mode
   :config
   (yas-reload-all)
   :hook (prog-mode . yas-minor-mode))
 
 (use-package yasnippet-snippets :ensure t)
+#+END_SRC
+** Markdown
+
+#+BEGIN_SRC emacs-lisp
+(use-package markdown-mode
+  :commands (markdown-mode gfm-mode)
+  :mode (("README\\.md\\'" . gfm-mode)
+         ("\\.md\\'" . markdown-mode)
+         ("\\.markdown\\'" . markdown-mode))
+  :config
+  (setq markdown-command "pandoc"))
+#+END_SRC
+
+Word count for markdown:
+
+#+BEGIN_SRC emacs-lisp
+(use-package wc-mode
+  :hook (markdown-mode gfm-mode))
+#+END_SRC
+** Web development
+
+*** JavaScript
+
+#+BEGIN_SRC emacs-lisp
+(use-package rjsx-mode
+  :mode "\\.js$"
+  :config
+  (setq js-indent-level 2
+        js2-strict-missing-semi-warning nil))
+#+END_SRC
+
+*** Vue
+
+#+BEGIN_SRC emacs-lisp
+(use-package vue-mode
+  :mode "\\.vue$")
+#+END_SRC
+
+*** HTML Templates
+
+#+BEGIN_SRC emacs-lisp
+(use-package web-mode
+  :config
+  (add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
+  (add-hook 'web-mode-hook (lambda () (rainbow-delimiters-mode -1)))
+  (setq web-mode-enable-engine-detection t
+        web-mode-markup-indent-offset 2))
+#+END_SRC
+
+*** TODO Prettier formatting
+
+#+BEGIN_SRC emacs-lisp
+(use-package prettier-js
+  :hook ((rjsx-mode . prettier-js-mode)
+         (vue-mode . prettier-js-mode))
+  :config
+  ;; TODO: Look in multiple places to find prettier
+  (setq prettier-js-command "/home/ibelieve/.local/bin/prettier"
+        prettier-js-args '("--print-width" "100"
+                           "--no-semi"
+                           "--single-quote")))
 #+END_SRC

@@ -538,6 +538,17 @@ Mark TODO tasks as in-progress when clocking:
 	 :empty-lines 1)))
 #+END_SRC
 
+** Reveal.js presentations
+
+#+BEGIN_SRC emacs-lisp
+(use-package ox-reveal
+  :config
+  (setq org-reveal-root "http://cdn.jsdelivr.net/reveal.js/3.0.0/"
+        org-reveal-title-slide "")
+
+  (use-package htmlize))
+#+END_SRC
+
 * Email
 
 #+BEGIN_SRC emacs-lisp

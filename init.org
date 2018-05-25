@@ -675,6 +675,13 @@ Mark TODO tasks as in-progress when clocking:
 
 *** Line numbers
 
+#+BEGIN_SRC emacs-lisp
+(use-package linum
+  :hook (prog-mode . linum-mode)
+  :config
+  (setq linum-format "%4s "))
+#+END_SRC
+
 *** Delimiters
 
 #+BEGIN_SRC emacs-lisp
@@ -732,6 +739,14 @@ The sections are inserted by running the functions on the hook
 
 (use-package yasnippet-snippets :ensure t)
 #+END_SRC
+
+** YAML
+
+#+BEGIN_SRC emacs-lisp
+(use-package yaml-mode :ensure nil
+  :mode "\\.ya?ml$")
+#+END_SRC
+
 ** Markdown
 
 #+BEGIN_SRC emacs-lisp
@@ -750,6 +765,7 @@ Word count for markdown:
 (use-package wc-mode
   :hook (markdown-mode gfm-mode))
 #+END_SRC
+
 ** Web development
 
 *** JavaScript
@@ -792,4 +808,10 @@ Word count for markdown:
         prettier-js-args '("--print-width" "100"
                            "--no-semi"
                            "--single-quote")))
+#+END_SRC
+** Rust
+
+#+BEGIN_SRC emacs-lisp
+(use-package rust-mode
+  :mode "\\.rs")
 #+END_SRC

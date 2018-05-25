@@ -72,14 +72,20 @@
 
 #+BEGIN_SRC emacs-lisp
 (defun ace/load-theme ()
-    (set-frame-font "Source Code Pro"))
+  (set-frame-font "Source Code Pro")
+  (load-theme 'doom-solarized-light t)
+  (doom-themes-visual-bell-config)
+  (doom-themes-org-config))
 
-(if (daemonp)
-    (add-hook 'after-make-frame-functions
-	      (lambda (frame)
-		(select-frame frame)
+(use-package doom-themes
+  :defer t
+  :init
+  (if (daemonp)
+      (add-hook 'after-make-frame-functions
+		(lambda (frame)
+		  (select-frame frame)
                 (ace/load-theme)))
-  (ace/load-theme))
+    (ace/load-theme)))
 #+END_SRC
 
 ** Icons
